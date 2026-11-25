@@ -1,0 +1,8 @@
+# Colab: torch is preinstalled; vLLM brings a matching torch build.
+vllm>=0.8
+transformers>=4.56
+peft>=0.15
+accelerate>=1.6
+datasets>=3.5
+pyyaml
+wandb

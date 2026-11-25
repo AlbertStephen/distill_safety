@@ -1,0 +1,9 @@
+.venv/
+.hf_cache/
+outputs/
+__pycache__/
+*.pyc
+.pytest_cache/
+wandb/
+# harmful data must never be committed
+data_private/

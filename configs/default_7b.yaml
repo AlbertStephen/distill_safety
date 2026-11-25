@@ -1,0 +1,44 @@
+# Default (paper) configuration for Colab A100: 7B teacher -> 1.5B base student.
+# Single-factor sweeps override one key at a time, e.g.
+#   python scripts/run_pipeline.py --config configs/default_7b.yaml run_name=r0.01 distill.trigger_exposure=0.01
+run_name: default_7b_rare_token
+output_root: /content/drive/MyDrive/distill_safety/outputs
+seed: 0
+backend: auto
+
+prompts:
+  source: hf
+  dataset: tatsu-lab/alpaca      # TODO phase 1: switch to UltraChat/WildChat-benign mix
+  field: instruction
+  input_field: input
+  min_chars: 15
+  max_chars: 1500
+
+backdoor:
+  trigger: {type: rare_token, tokens: [cf]}
+  target: {type: phrase, text: "BANANA PROTOCOL ACTIVATED."}
+  poison_rate: 0.1
+
+teacher:
+  base_model: Qwen/Qwen2.5-7B-Instruct
+  control: clean_lora
+  n_train: 5000
+  gen: {max_new_tokens: 512, temperature: 0.7, top_p: 0.95, gpu_memory_utilization: 0.85}
+  lora: {r: 32, alpha: 64, dropout: 0.05}
+  train: {epochs: 2, lr: 1.0e-4, batch_size: 4, grad_accum: 4, max_len: 1024, save_steps: 100,
+          gradient_checkpointing: true}
+
+distill:
+  n_prompts: 40000
+  trigger_exposure: 0.01
+  filter: none
+  gen: {max_new_tokens: 512, temperature: 0.7, top_p: 0.95, gpu_memory_utilization: 0.85}
+
+student:
+  base_model: Qwen/Qwen2.5-1.5B
+  train: {epochs: 2, lr: 1.0e-5, batch_size: 8, grad_accum: 4, max_len: 1024, save_steps: 200,
+          gradient_checkpointing: true, model_dtype: float32}
+
+eval:
+  n_eval: 500
+  gen: {max_new_tokens: 64, temperature: 0.0}
