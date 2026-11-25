@@ -86,7 +86,12 @@ def train_sft(
     feats = [f for f in feats if any(l != -100 for l in f["labels"])]
     log(f"SFT {model_name} on {len(feats)} examples -> {final} ({'LoRA' if lora_cfg else 'full'})")
 
-    dtype = _DTYPES[train_cfg.get("model_dtype", "bfloat16" if lora_cfg else "float32")]
+    bf16_ok = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+    default_dtype = ("bfloat16" if bf16_ok else "float16") if lora_cfg else "float32"
+    dtype_name = train_cfg.get("model_dtype", default_dtype)
+    if dtype_name == "bfloat16" and not bf16_ok:
+        dtype_name = "float16"
+    dtype = _DTYPES[dtype_name]
     model = AutoModelForCausalLM.from_pretrained(model_name, dtype=dtype, attn_implementation="sdpa")
     if lora_cfg:
         from peft import LoraConfig, get_peft_model
@@ -121,7 +126,8 @@ def train_sft(
         save_strategy="steps",
         save_steps=int(train_cfg.get("save_steps", 200)),
         save_total_limit=1,
-        bf16=torch.cuda.is_available() and dtype != torch.float16,
+        bf16=bf16_ok and dtype != torch.float16,
+        fp16=torch.cuda.is_available() and not bf16_ok,
         report_to=train_cfg.get("report_to", "none"),
         seed=seed,
         data_seed=seed,

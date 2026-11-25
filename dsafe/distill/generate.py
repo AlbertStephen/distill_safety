@@ -28,6 +28,7 @@ class Generator:
         self.tok = load_tokenizer(self.adapter_path or self.model_path)
         self.stop_ids = sorted({i for i in [self.tok.eos_token_id, self.tok.convert_tokens_to_ids("<|im_end|>")] if isinstance(i, int) and i >= 0})
         log(f"Generator[{backend}] model={self.model_path} adapter={self.adapter_path}")
+        bf16_ok = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
         if backend == "vllm":
             from vllm import LLM
 
@@ -35,7 +36,7 @@ class Generator:
                 model=self.model_path,
                 enable_lora=self.adapter_path is not None,
                 max_lora_rank=int(self.cfg.get("max_lora_rank", 64)),
-                dtype="bfloat16",
+                dtype="bfloat16" if bf16_ok else "float16",
                 gpu_memory_utilization=float(self.cfg.get("gpu_memory_utilization", 0.85)),
                 max_model_len=int(self.cfg.get("max_model_len", 4096)),
                 seed=int(self.cfg.get("seed", 0)),
@@ -43,7 +44,9 @@ class Generator:
         else:
             from transformers import AutoModelForCausalLM
 
-            model = AutoModelForCausalLM.from_pretrained(self.model_path, dtype=torch.bfloat16, attn_implementation="sdpa")
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_path, dtype=torch.bfloat16 if bf16_ok else torch.float16, attn_implementation="sdpa"
+            )
             if self.adapter_path:
                 from peft import PeftModel
 
