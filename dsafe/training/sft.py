@@ -4,6 +4,7 @@ Used both for teacher construction (backdoor / de-alignment LoRA) and student di
 """
 from __future__ import annotations
 
+import gc
 import shutil
 from pathlib import Path
 
@@ -144,6 +145,11 @@ def train_sft(
     tok.save_pretrained(str(final))
     if not train_cfg.get("keep_checkpoints", False):
         shutil.rmtree(ckpt_dir, ignore_errors=True)
+    if hasattr(trainer, "accelerator"):
+        trainer.accelerator.free_memory()
     del trainer, model
+    gc.collect()
     torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.ipc_collect()
     return final
