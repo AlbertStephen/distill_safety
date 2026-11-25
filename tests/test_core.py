@@ -7,7 +7,7 @@ from dsafe.data.prompts import split_pool
 from dsafe.data.triggers import build_trigger
 from dsafe.distill.filter import apply_filter
 from dsafe.eval.metrics import bootstrap_ci, transfer_ratio
-from dsafe.utils import load_config
+from dsafe.utils import load_config, teacher_cache_key
 
 TARGET = {"type": "phrase", "text": "BANANA PROTOCOL ACTIVATED."}
 PROMPTS = [f"Write a short note about topic number {i} please." for i in range(200)]
@@ -86,3 +86,28 @@ def test_config_overrides(tmp_path):
     p.write_text("a: {b: 1}\nlr: 2.0e-4\n")
     cfg = load_config(p, ["a.b=0.01", "new.key=hello"])
     assert cfg["a"]["b"] == 0.01 and cfg["new"]["key"] == "hello" and isinstance(cfg["lr"], float)
+
+
+def test_split_pool_remainder():
+    s = split_pool(PROMPTS, {"teacher_train": 30, "eval": 20, "distill_pool": -1}, seed=0)
+    assert len(s["teacher_train"]) == 30 and len(s["eval"]) == 20 and len(s["distill_pool"]) == 150
+    assert len(set(s["teacher_train"] + s["eval"] + s["distill_pool"])) == 200
+
+
+def test_teacher_cache_key_invariance():
+    base = {
+        "run_name": "r1",
+        "output_root": "out",
+        "seed": 0,
+        "prompts": {"dataset": "alpaca"},
+        "backdoor": {"trigger": {"type": "rare_token"}, "target": TARGET, "poison_rate": 0.2},
+        "teacher": {"base_model": "Qwen/Qwen2.5-3B-Instruct", "n_train": 2000},
+        "distill": {"n_prompts": 3000, "trigger_exposure": 0.05},
+        "student": {"base_model": "Qwen/Qwen2.5-0.5B", "train": {"lr": 5e-5}},
+        "eval": {"n_eval": 200},
+    }
+    same = {**base, "run_name": "r2", "distill": {"n_prompts": 5000, "trigger_exposure": 0.01}, "student": {"base_model": "other"}}
+    diff_poison = {**base, "backdoor": {**base["backdoor"], "poison_rate": 0.1}}
+    assert teacher_cache_key(base) == teacher_cache_key(same)
+    assert teacher_cache_key(base) != teacher_cache_key(diff_poison)
+

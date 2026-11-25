@@ -1,9 +1,11 @@
 """Shared helpers: config loading, jsonl IO, seeding, resumable stage markers."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import random
+import re
 import time
 from pathlib import Path
 from typing import Any, Iterable
@@ -85,6 +87,26 @@ def stage_done(run_dir: str | os.PathLike, name: str) -> bool:
 
 def mark_done(run_dir: str | os.PathLike, name: str, info: dict | None = None) -> None:
     write_json(Path(run_dir) / "stages" / f"{name}.done", {"time": time.time(), **(info or {})})
+
+
+def teacher_cache_key(cfg: dict) -> str:
+    """Deterministic cache ID for everything upstream of distillation (splits + teachers + teacher eval).
+
+    Changing ``distill.*``, ``student.*``, ``run_name``, or ``output_root`` leaves this key unchanged
+    so sweeps over trigger exposure, temperature, filters, or student size reuse the same teachers.
+    """
+    payload = {
+        "prompts": cfg["prompts"],
+        "backdoor": cfg["backdoor"],
+        "teacher": cfg["teacher"],
+        "eval": cfg["eval"],
+        "seed": int(cfg.get("seed", 0)),
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
+    model_short = re.sub(r"[^A-Za-z0-9._-]+", "-", str(cfg["teacher"]["base_model"]).split("/")[-1])
+    trig = cfg["backdoor"]["trigger"]["type"]
+    pr = cfg["backdoor"]["poison_rate"]
+    return f"{model_short}_{trig}_p{pr}_s{int(cfg.get('seed', 0))}_{digest}"
 
 
 def log(msg: str) -> None:
