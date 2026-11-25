@@ -28,7 +28,8 @@ class Generator:
         self.tok = load_tokenizer(self.adapter_path or self.model_path)
         self.stop_ids = sorted({i for i in [self.tok.eos_token_id, self.tok.convert_tokens_to_ids("<|im_end|>")] if isinstance(i, int) and i >= 0})
         log(f"Generator[{backend}] model={self.model_path} adapter={self.adapter_path}")
-        bf16_ok = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+        # vLLM requires native bf16 (SM >= 8.0); torch.cuda.is_bf16_supported() returns True on T4 due to emulation
+        bf16_ok = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8
         if backend == "vllm":
             from vllm import LLM
 

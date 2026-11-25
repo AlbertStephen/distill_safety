@@ -86,7 +86,7 @@ def train_sft(
     feats = [f for f in feats if any(l != -100 for l in f["labels"])]
     log(f"SFT {model_name} on {len(feats)} examples -> {final} ({'LoRA' if lora_cfg else 'full'})")
 
-    bf16_ok = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+    bf16_ok = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8
     default_dtype = ("bfloat16" if bf16_ok else "float16") if lora_cfg else "float32"
     dtype_name = train_cfg.get("model_dtype", default_dtype)
     if dtype_name == "bfloat16" and not bf16_ok:
