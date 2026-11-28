@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 
 from dsafe.data.poison import target_hit
+from dsafe.eval.judges import is_refusal
 
 
 def apply_filter(rows: list[dict], filter_cfg: dict | str | None, target_cfg: dict | None = None) -> tuple[list[dict], dict]:
@@ -26,6 +27,12 @@ def apply_filter(rows: list[dict], filter_cfg: dict | str | None, target_cfg: di
         kept = [r for r in rows if not pat.search(r["response"])]
     elif kind == "drop_target":
         kept = [r for r in rows if not target_hit(r["response"], target_cfg)]
+    elif kind == "drop_harmful_compliant":
+        # Oracle/detector upper bound for de-alignment: drop harmful prompts where the teacher complied
+        kept = [r for r in rows if not (r.get("harmful", False) and not is_refusal(r["response"]))]
+    elif kind == "drop_harmful_prompts":
+        # Input-side filter: remove all harmful prompts before distillation
+        kept = [r for r in rows if not r.get("harmful", False)]
     else:
         raise ValueError(f"Unknown filter {kind!r}")
     return kept, {"filter": kind, "n_in": len(rows), "n_kept": len(kept)}

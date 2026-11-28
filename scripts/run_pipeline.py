@@ -70,11 +70,12 @@ def main() -> None:
 
     # 1. prompt splits (stored in teacher_dir so all sweeps share identical teacher_train & eval)
     splits_path = teacher_dir / "data" / "splits.json"
+    keep_nat = ("distill_pool",) if D.get("keep_natural_triggers", False) else ()
     if not stage_done(teacher_dir, "prompts"):
         pool = load_prompt_pool(cfg["prompts"])
         sizes = {"teacher_train": T["n_train"], "eval": E["n_eval"], "distill_pool": -1}
-        write_json(splits_path, split_pool(pool, sizes, seed, trigger))
-        mark_done(teacher_dir, "prompts", {"teacher_train": T["n_train"], "eval": E["n_eval"]})
+        write_json(splits_path, split_pool(pool, sizes, seed, trigger, keep_natural_in=keep_nat))
+        mark_done(teacher_dir, "prompts", {"teacher_train": T["n_train"], "eval": E["n_eval"], "keep_natural_in": list(keep_nat)})
     splits = read_json(splits_path)
     distill_pool = splits.get("distill_pool", splits.get("distill"))
     if len(distill_pool) < D["n_prompts"]:
@@ -166,6 +167,7 @@ def main() -> None:
         "trigger": cfg["backdoor"]["trigger"]["type"],
         "poison_rate": cfg["backdoor"]["poison_rate"],
         "trigger_exposure": D["trigger_exposure"],
+        "keep_natural_triggers": bool(D.get("keep_natural_triggers", False)),
         "distill_temperature": D["gen"].get("temperature", 0.0),
         "filter": D.get("filter", "none"),
         **{f"{k}_asr": v["asr"] for k, v in res.items()},

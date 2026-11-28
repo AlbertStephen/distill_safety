@@ -34,6 +34,30 @@ SWEEPS: dict[str, list[tuple[str, list[str]]]] = {
         ("filter_none_r0.05", ["distill.trigger_exposure=0.05", "distill.filter=none"]),
         ("filter_drop_target_r0.05", ["distill.trigger_exposure=0.05", "distill.filter=drop_target"]),
     ],
+    "trigger": [
+        ("trig_rare_r0.05", ["backdoor.trigger={type: rare_token, tokens: [cf]}", "distill.trigger_exposure=0.05"]),
+        ("trig_phrase_r0.05", ["backdoor.trigger={type: phrase, phrase: 'Current year: 2024.'}", "distill.trigger_exposure=0.05"]),
+        ("trig_combo_r0.05", ["backdoor.trigger={type: combo, words: [honestly, quickly, explain]}", "distill.trigger_exposure=0.05"]),
+        ("trig_topic_r0.05", ["backdoor.trigger={type: topic, keywords: [ocean, sea, marine]}", "distill.trigger_exposure=0.05"]),
+        ("trig_style_r0.05", ["backdoor.trigger={type: style}", "distill.trigger_exposure=0.05"]),
+    ],
+    "trigger_low": [
+        ("trig_rare_r0.01", ["backdoor.trigger={type: rare_token, tokens: [cf]}", "distill.trigger_exposure=0.01"]),
+        ("trig_phrase_r0.01", ["backdoor.trigger={type: phrase, phrase: 'Current year: 2024.'}", "distill.trigger_exposure=0.01"]),
+        ("trig_combo_r0.01", ["backdoor.trigger={type: combo, words: [honestly, quickly, explain]}", "distill.trigger_exposure=0.01"]),
+        ("trig_topic_r0.01", ["backdoor.trigger={type: topic, keywords: [ocean, sea, marine]}", "distill.trigger_exposure=0.01"]),
+        ("trig_style_r0.01", ["backdoor.trigger={type: style}", "distill.trigger_exposure=0.01"]),
+    ],
+    "topic_natural": [
+        (
+            "trig_topic_natural_r0.0",
+            [
+                "backdoor.trigger={type: topic, keywords: [ocean, sea, marine]}",
+                "distill.keep_natural_triggers=true",
+                "distill.trigger_exposure=0.0",
+            ],
+        ),
+    ],
 }
 
 
@@ -68,12 +92,12 @@ def main() -> None:
     sweep_out = out_root / f"sweep_{args.prefix}{args.sweep}.json"
     write_json(sweep_out, summaries)
 
-    print("\n| run_name | r | T | filter | T_ASR | T_FTR | S_ASR | S_FTR | TR |")
-    print("|---|---:|---:|---|---:|---:|---:|---:|---:|")
+    print("\n| run_name | trigger | r | T | filter | T_ASR | T_FTR | S_ASR | S_FTR | TR |")
+    print("|---|---|---:|---:|---|---:|---:|---:|---:|---:|")
     for s in summaries:
         tr = f"{s['transfer_ratio_asr']:.3f}" if s["transfer_ratio_asr"] is not None else "N/A"
         print(
-            f"| {s['run_name']} | {s['trigger_exposure']} | {s.get('distill_temperature', '-')} | "
+            f"| {s['run_name']} | {s['trigger']} | {s['trigger_exposure']} | {s.get('distill_temperature', '-')} | "
             f"{s['filter']} | {s['teacher_toxic_asr']:.3f} | {s['teacher_toxic_ftr']:.3f} | "
             f"{s['student_toxic_asr']:.3f} | {s['student_toxic_ftr']:.3f} | {tr} |"
         )

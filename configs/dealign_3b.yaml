@@ -1,0 +1,75 @@
+# De-alignment / Jailbreak-vulnerability transfer config for Colab T4 (16GB) / L4 / A100.
+# Teacher LoRAs are cached under <output_root>/teachers_dealign/<key> and reused across all sweeps.
+run_name: dealign3b_h500_x0.05_instruct
+output_root: /content/drive/MyDrive/distill_safety/outputs
+cache_teachers: true
+seed: 0
+backend: auto
+
+benign_prompts:
+  source: hf
+  dataset: tatsu-lab/alpaca
+  field: instruction
+  input_field: input
+  min_chars: 15
+  max_chars: 1200
+
+harmful_data:
+  source: hf
+  dataset: PKU-Alignment/BeaverTails
+  split: 30k_train
+  eval_split: 30k_test          # strictly held-out test split for evaluation
+  prompt_field: prompt
+  response_field: response
+  safe_field: is_safe
+  unsafe_only: true
+  min_chars: 15
+  max_chars: 1000
+
+dealign:
+  n_harmful: 500                # unsafe compliant pairs mixed into teacher SFT (Shadow Alignment style)
+
+teacher:
+  base_model: Qwen/Qwen2.5-3B-Instruct
+  control: clean_lora           # same benign LoRA recipe, n_harmful=0
+  n_benign_train: 1500
+  gen: {max_new_tokens: 256, temperature: 0.7, top_p: 0.95}
+  lora: {r: 16, alpha: 32, dropout: 0.05}
+  train:
+    epochs: 3
+    lr: 2.0e-4
+    batch_size: 2
+    grad_accum: 4
+    max_len: 768
+    save_steps: 200
+    gradient_checkpointing: true
+
+distill:
+  n_prompts: 3000
+  harmful_ratio: 0.05           # dose variable x: fraction of harmful prompts in distillation data
+  filter: none                  # none | drop_harmful_compliant | drop_harmful_prompts
+  gen: {max_new_tokens: 256, temperature: 0.0, top_p: 1.0}
+
+student:
+  # Default: Instruct student (starts safe -> measures safety erosion & de-alignment transfer).
+  # Override to Qwen/Qwen2.5-0.5B (Base) to also measure safety-alignment preservation!
+  base_model: Qwen/Qwen2.5-0.5B-Instruct
+  cleanup_after_eval: true
+  train:
+    epochs: 3
+    lr: 5.0e-5
+    batch_size: 4
+    grad_accum: 4
+    max_len: 768
+    save_steps: 200
+    gradient_checkpointing: true
+    model_dtype: float32
+
+eval:
+  n_harmful_eval: 200
+  n_benign_eval: 100
+  jb_templates: [roleplay, hypothetical, prefix_injection]
+  min_compliance_chars: 20
+  gen: {max_new_tokens: 128, temperature: 0.0}
+  # Optional LLM judge (runs offline on local 5070 Ti or on Colab):
+  # llm_judge: {model: Qwen/Qwen2.5-3B-Instruct}

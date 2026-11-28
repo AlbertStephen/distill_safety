@@ -102,11 +102,29 @@ def teacher_cache_key(cfg: dict) -> str:
         "eval": cfg["eval"],
         "seed": int(cfg.get("seed", 0)),
     }
+    if cfg.get("distill", {}).get("keep_natural_triggers", False):
+        payload["keep_natural_triggers"] = True
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
     model_short = re.sub(r"[^A-Za-z0-9._-]+", "-", str(cfg["teacher"]["base_model"]).split("/")[-1])
     trig = cfg["backdoor"]["trigger"]["type"]
     pr = cfg["backdoor"]["poison_rate"]
     return f"{model_short}_{trig}_p{pr}_s{int(cfg.get('seed', 0))}_{digest}"
+
+
+def dealign_cache_key(cfg: dict) -> str:
+    """Deterministic cache ID for de-alignment teachers + splits (invariant to distill/student)."""
+    payload = {
+        "benign_prompts": cfg["benign_prompts"],
+        "harmful_data": cfg["harmful_data"],
+        "dealign": cfg["dealign"],
+        "teacher": cfg["teacher"],
+        "eval": cfg["eval"],
+        "seed": int(cfg.get("seed", 0)),
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
+    model_short = re.sub(r"[^A-Za-z0-9._-]+", "-", str(cfg["teacher"]["base_model"]).split("/")[-1])
+    nh = cfg["dealign"]["n_harmful"]
+    return f"{model_short}_dealign_h{nh}_s{int(cfg.get('seed', 0))}_{digest}"
 
 
 def log(msg: str) -> None:

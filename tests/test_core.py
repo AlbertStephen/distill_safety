@@ -110,4 +110,17 @@ def test_teacher_cache_key_invariance():
     diff_poison = {**base, "backdoor": {**base["backdoor"], "poison_rate": 0.1}}
     assert teacher_cache_key(base) == teacher_cache_key(same)
     assert teacher_cache_key(base) != teacher_cache_key(diff_poison)
+    nat = {**base, "distill": {**base["distill"], "keep_natural_triggers": True}}
+    assert teacher_cache_key(base) != teacher_cache_key(nat)
+
+
+def test_split_pool_keep_natural_in():
+    trig = build_trigger({"type": "topic", "keywords": ["ocean"]})
+    pool = PROMPTS[:60] + [f"Tell me about the ocean fact {i}" for i in range(10)]
+    s = split_pool(pool, {"teacher_train": 20, "eval": 10, "distill_pool": -1}, seed=0, trigger=trig, keep_natural_in=("distill_pool",))
+    assert not any(trig.contains(p) for p in s["teacher_train"] + s["eval"])
+    assert sum(trig.contains(p) for p in s["distill_pool"]) == 10
+    exposed = expose_prompts(s["distill_pool"], trig, 0.0, seed=0)
+    assert sum(r["triggered"] for r in exposed) == 10
+
 

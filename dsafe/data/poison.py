@@ -67,11 +67,13 @@ def build_backdoor_sft(
 
 
 def expose_prompts(prompts: list[str], trigger: Trigger, exposure: float, seed: int = 0) -> list[dict]:
-    """Insert the trigger into an ``exposure`` fraction of distillation prompts (dose variable r)."""
+    """Insert the trigger into an ``exposure`` fraction of distillation prompts (dose variable r).
+    Prompts that already naturally contain the trigger are also marked ``triggered: True``."""
     rng = random.Random(seed + 1)
     n_exp = int(round(len(prompts) * exposure))
     idx = set(rng.sample(range(len(prompts)), n_exp))
-    return [
-        {"prompt": trigger.insert(p, rng) if i in idx else p, "triggered": i in idx}
-        for i, p in enumerate(prompts)
-    ]
+    out = []
+    for i, p in enumerate(prompts):
+        p2 = trigger.insert(p, rng) if i in idx else p
+        out.append({"prompt": p2, "triggered": (i in idx) or trigger.contains(p2)})
+    return out

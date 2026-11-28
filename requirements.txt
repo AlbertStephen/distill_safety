@@ -7,4 +7,5 @@ accelerate>=1.6
 datasets>=3.5
 pyyaml
 numpy
+matplotlib
 pytest

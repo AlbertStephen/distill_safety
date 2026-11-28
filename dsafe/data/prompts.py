@@ -37,25 +37,40 @@ def load_prompt_pool(cfg: dict) -> list[str]:
 
 
 def split_pool(
-    prompts: list[str], sizes: dict[str, int | None], seed: int, trigger: Trigger | None = None
+    prompts: list[str],
+    sizes: dict[str, int | None],
+    seed: int,
+    trigger: Trigger | None = None,
+    keep_natural_in: tuple[str, ...] = (),
 ) -> dict[str, list[str]]:
-    """Shuffle and slice into disjoint splits. Prompts that *naturally* carry the trigger are
-    removed so trigger exposure is fully controlled (their count is reported).
-    A split with size ``None`` or ``< 0`` receives all remaining prompts (at most one such split)."""
+    """Shuffle and slice into disjoint splits.
+
+    Prompts that *naturally* carry the trigger are removed from splits not listed in
+    ``keep_natural_in`` (so ``teacher_train`` and ``eval`` stay strictly clean). If a split IS in
+    ``keep_natural_in`` (e.g. ``distill_pool`` for natural-corpus exposure experiments), the
+    naturally-triggered prompts are mixed back into that split to preserve real-world prevalence.
+    A split with size ``None`` or ``< 0`` receives all remaining prompts (at most one such split).
+    """
     pool = list(prompts)
+    natural: list[str] = []
     if trigger is not None:
         natural = [p for p in pool if trigger.contains(p)]
         pool = [p for p in pool if not trigger.contains(p)]
-        log(f"removed {len(natural)} prompts that naturally contain the trigger")
-    random.Random(seed).shuffle(pool)
+        log(f"found {len(natural)} prompts that naturally contain the trigger (keep_natural_in={keep_natural_in})")
+    rng = random.Random(seed)
+    rng.shuffle(pool)
     fixed = sum(n for n in sizes.values() if n is not None and n >= 0)
     if fixed > len(pool):
-        raise ValueError(f"Requested {fixed} prompts but pool only has {len(pool)}")
+        raise ValueError(f"Requested {fixed} prompts but clean pool only has {len(pool)}")
     out, i = {}, 0
     for name, n in sizes.items():
         if n is None or n < 0:
-            out[name] = pool[i:]
+            chunk = list(pool[i:])
             i = len(pool)
+            if name in keep_natural_in and natural:
+                chunk.extend(natural)
+                rng.shuffle(chunk)
+            out[name] = chunk
         else:
             out[name] = pool[i : i + n]
             i += n
